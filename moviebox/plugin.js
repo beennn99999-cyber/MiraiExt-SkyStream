@@ -6,26 +6,25 @@
   const IMG_BASE = P + "image.tmdb.org/t/p/w500";
   const CINEMETA = P + "v3-cinemeta.strem.io";
 
-  async function safeFetchJson(url, headers) {
-    const hdrs = Object.assign({
-      "Accept": "application/json",
-      "User-Agent": "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36"
-    }, headers || {});
+  const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-    let raw = null;
-    if (typeof http_get === "function") {
-      raw = await http_get(url, hdrs);
-    } else if (typeof http_request === "function") {
-      const r = await http_request({ url: url, method: "GET", headers: hdrs });
-      raw = r && (r.body || r.data || r);
-    } else if (typeof fetch === "function") {
-      const r = await fetch(url, { headers: hdrs });
-      raw = await r.text();
-    }
+  function getBody(res) {
+    if (!res) return "";
+    if (typeof res === "string") return res;
+    if (res.body) return typeof res.body === "string" ? res.body : JSON.stringify(res.body);
+    return String(res);
+  }
 
-    if (!raw) throw new Error("Empty response");
-    if (typeof raw === "object") return raw;
-    return JSON.parse(raw);
+  async function safeFetchJson(url, extraHeaders) {
+    const headers = Object.assign({
+      "User-Agent": UA,
+      "Accept": "application/json, text/plain, */*"
+    }, extraHeaders || {});
+
+    const res = await http_get(url, headers);
+    const body = getBody(res);
+    if (!body) throw new Error("Empty body from " + url);
+    return JSON.parse(body);
   }
 
   function mapTmdb(item, forceType) {
@@ -73,7 +72,7 @@
             type: "movie"
           }));
         } else {
-          throw lastErr || new Error("Blocked by ISP");
+          throw lastErr || new Error("No data received");
         }
       }
 
@@ -120,7 +119,7 @@
         url: type + ":" + tmdbId,
         posterUrl: item && item.poster_path ? IMG_BASE + item.poster_path : "",
         description: (item && item.overview) || "",
-        year: parseInt(releaseStr.split("-")[0]) || 2026,
+        year: parseInt(releaseStr.split("-")[0], 10) || 2026,
         type: type
       };
 
