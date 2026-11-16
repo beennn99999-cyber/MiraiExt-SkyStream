@@ -1,9 +1,9 @@
 {
-  "name": "MiraiExt",
-  "packageName": "com.arranoust",
-  "description": "Keeping your streams up!",
+  "name": "BioscopeBD Repo",
+  "packageName": "com.beennn99999",
+  "description": "Custom SkyStream Extensions",
   "manifestVersion": 1,
   "pluginLists": [
-    "https://raw.githubusercontent.com/arranoust/MiraiExt-SkyStream/main/dist/plugins.json"
+    "https://githubusercontent.com"
   ]
 }
