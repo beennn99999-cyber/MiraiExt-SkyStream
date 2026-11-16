@@ -4,6 +4,6 @@
   "description": "Personal BioscopeBD SkyStream Repo",
   "manifestVersion": 1,
   "pluginLists": [
-    "https://raw.githubusercontent.com/beennn99999-cyber/MiraiExt-SkyStream/main/dist/plugins.json"
+    "https:://raw.githubusercontent.com/beennn99999-cyber/MiraiExt-SkyStream/main/dist/plugins.json"
   ]
 }
