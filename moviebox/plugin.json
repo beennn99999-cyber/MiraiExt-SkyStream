@@ -1,10 +1,10 @@
 {
-  "packageName": "com.arranoust.moviebox",
-  "name": "Moviebox",
-  "version": 9,
-  "baseUrl": "https://themoviebox.org",
-  "description": "Moviebox - Nonton Film & Series Subtitle Indonesia",
-  "authors": ["alfanthariq"],
-  "languages": ["id"],
+  "packageName": "com.beennn99999.bioscopebd",
+  "name": "BioscopeBD",
+  "version": 1,
+  "baseUrl": "https://bioscopebd.com",
+  "description": "BioscopeBD Multi-Audio Movies & Series",
+  "authors": ["beennn99999"],
+  "languages": ["bn", "hi", "en"],
   "categories": ["Movies", "Series"]
 }
