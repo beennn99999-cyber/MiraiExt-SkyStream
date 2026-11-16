@@ -5,12 +5,22 @@
   const IMG_BASE = "https://image." + "tmdb.org/t/p/w500";
 
   async function requestJson(url, headers) {
+    const hdrs = Object.assign({
+      "Accept": "application/json",
+      "User-Agent": "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+    }, headers || {});
+
+    let raw;
     if (typeof http_get === "function") {
-      const res = await http_get(url, headers || {});
-      return typeof res === "string" ? JSON.parse(res) : res;
+      raw = await http_get(url, hdrs);
+    } else if (typeof fetch === "function") {
+      const r = await fetch(url, { headers: hdrs });
+      raw = await r.text();
     }
-    const res = await fetch(url, { headers: headers || {} });
-    return await res.json();
+
+    if (!raw) return null;
+    if (typeof raw === "object") return raw;
+    return JSON.parse(raw);
   }
 
   function formatItem(item, forceType) {
@@ -38,7 +48,7 @@
       const homeMap = {};
       for (const cat of catalogs) {
         const json = await requestJson(cat.url);
-        if (json && json.results) {
+        if (json && json.results && json.results.length > 0) {
           homeMap[cat.name] = json.results.map(item => formatItem(item, cat.type));
         }
       }
@@ -53,7 +63,7 @@
     try {
       const url = TMDB_BASE + "/search/multi?api_key=" + TMDB_KEY + "&query=" + encodeURIComponent(query);
       const json = await requestJson(url);
-      const results = (json.results || [])
+      const results = (json && json.results ? json.results : [])
         .filter(i => i.media_type === "movie" || i.media_type === "tv")
         .map(i => formatItem(i, i.media_type));
       cb({ success: true, data: results });
@@ -70,17 +80,17 @@
       const apiUrl = TMDB_BASE + "/" + type + "/" + tmdbId + "?api_key=" + TMDB_KEY;
       const item = await requestJson(apiUrl);
 
-      const releaseStr = item.release_date || item.first_air_date || "2026";
+      const releaseStr = (item && (item.release_date || item.first_air_date)) || "2026";
       const data = {
-        title: item.title || item.name || "Unknown",
+        title: (item && (item.title || item.name)) || "Unknown",
         url: url,
-        posterUrl: item.poster_path ? IMG_BASE + item.poster_path : "",
-        description: item.overview || "",
+        posterUrl: item && item.poster_path ? IMG_BASE + item.poster_path : "",
+        description: (item && item.overview) || "",
         year: parseInt(releaseStr.split("-")[0]) || 2026,
         type: type
       };
 
-      if (type === "tv" && item.seasons) {
+      if (type === "tv" && item && item.seasons) {
         const episodes = [];
         for (const s of item.seasons) {
           if (s.season_number === 0) continue;
@@ -116,7 +126,7 @@
       const apiUrl = BASE_URL + "/api/protected-source?provider=auto&tmdb=" + tmdbId + "&type=" + type + "&season=" + season + "&episode=" + episode;
       const headers = {
         "Referer": BASE_URL + "/",
-        "User-Agent": "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+        "Origin": BASE_URL
       };
 
       const json = await requestJson(apiUrl, headers);
