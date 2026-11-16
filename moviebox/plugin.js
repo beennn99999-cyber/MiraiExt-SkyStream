@@ -1,8 +1,8 @@
 (function () {
-  const BASE_URL = "https://bioscopebd.com";
-  const TMDB_BASE = "https://themoviedb.org";
+  const BASE_URL = "https://www." + "bioscopebd.com";
+  const TMDB_BASE = "https://api." + "themoviedb.org/3";
   const TMDB_KEY = "8265bd1679663a7ea12ac168da84d2e8";
-  const IMG_BASE = "https://tmdb.org";
+  const IMG_BASE = "https://image." + "tmdb.org/t/p/w500";
 
   async function requestJson(url, headers) {
     if (typeof http_get === "function") {
@@ -35,18 +35,15 @@
         { name: "⏳ Upcoming", url: TMDB_BASE + "/movie/upcoming?api_key=" + TMDB_KEY + "&page=1", type: "movie" }
       ];
 
-      const sections = [];
+      const homeMap = {};
       for (const cat of catalogs) {
         const json = await requestJson(cat.url);
         if (json && json.results) {
-          sections.push({
-            title: cat.name,
-            items: json.results.map(item => formatItem(item, cat.type))
-          });
+          homeMap[cat.name] = json.results.map(item => formatItem(item, cat.type));
         }
       }
 
-      cb({ success: true, data: sections });
+      cb({ success: true, data: homeMap });
     } catch (err) {
       cb({ success: false, error: String(err) });
     }
@@ -68,8 +65,8 @@
   async function load(url, cb) {
     try {
       const parts = url.split(":");
-      const type = parts;
-      const tmdbId = parts;
+      const type = parts[0];
+      const tmdbId = parts[1];
       const apiUrl = TMDB_BASE + "/" + type + "/" + tmdbId + "?api_key=" + TMDB_KEY;
       const item = await requestJson(apiUrl);
 
@@ -79,7 +76,7 @@
         url: url,
         posterUrl: item.poster_path ? IMG_BASE + item.poster_path : "",
         description: item.overview || "",
-        year: parseInt(releaseStr.split("-")) || 2026,
+        year: parseInt(releaseStr.split("-")[0]) || 2026,
         type: type
       };
 
@@ -111,10 +108,10 @@
   async function loadStreams(url, cb) {
     try {
       const parts = url.split(":");
-      const type = parts;
-      const tmdbId = parts;
-      const season = parts || 1;
-      const episode = parts || 1;
+      const type = parts[0];
+      const tmdbId = parts[1];
+      const season = parts[2] || 1;
+      const episode = parts[3] || 1;
 
       const apiUrl = BASE_URL + "/api/protected-source?provider=auto&tmdb=" + tmdbId + "&type=" + type + "&season=" + season + "&episode=" + episode;
       const headers = {
