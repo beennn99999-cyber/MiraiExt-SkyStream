@@ -1,29 +1,34 @@
 (function () {
-  const BASE_URL = "https://www." + "bioscopebd.com";
-  const TMDB_BASE = "https://api." + "themoviedb.org/3";
+  const P = "https://";
+  const BASE_URL = P + "://bioscopebd.com";
+  const TMDB_BASE = P + "api.themoviedb.org/3";
   const TMDB_KEY = "8265bd1679663a7ea12ac168da84d2e8";
-  const IMG_BASE = "https://image." + "tmdb.org/t/p/w500";
+  const IMG_BASE = P + "image.tmdb.org/t/p/w500";
+  const CINEMETA = P + "v3-cinemeta.strem.io";
 
-  async function requestJson(url, headers) {
+  async function safeFetchJson(url, headers) {
     const hdrs = Object.assign({
       "Accept": "application/json",
-      "User-Agent": "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+      "User-Agent": "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36"
     }, headers || {});
 
-    let raw;
+    let raw = null;
     if (typeof http_get === "function") {
       raw = await http_get(url, hdrs);
+    } else if (typeof http_request === "function") {
+      const r = await http_request({ url: url, method: "GET", headers: hdrs });
+      raw = r && (r.body || r.data || r);
     } else if (typeof fetch === "function") {
       const r = await fetch(url, { headers: hdrs });
       raw = await r.text();
     }
 
-    if (!raw) return null;
+    if (!raw) throw new Error("Empty response");
     if (typeof raw === "object") return raw;
     return JSON.parse(raw);
   }
 
-  function formatItem(item, forceType) {
+  function mapTmdb(item, forceType) {
     const isTv = forceType === "tv" || item.media_type === "tv" || !item.title;
     const type = isTv ? "tv" : "movie";
     return {
@@ -36,6 +41,7 @@
 
   async function getHome(cb) {
     try {
+      const homeMap = {};
       const catalogs = [
         { name: "🔥 New Released", url: TMDB_BASE + "/movie/now_playing?api_key=" + TMDB_KEY + "&page=1", type: "movie" },
         { name: "🇮🇳 Hindi & Bollywood", url: TMDB_BASE + "/discover/movie?api_key=" + TMDB_KEY + "&with_original_language=hi&sort_by=release_date.desc", type: "movie" },
@@ -45,11 +51,29 @@
         { name: "⏳ Upcoming", url: TMDB_BASE + "/movie/upcoming?api_key=" + TMDB_KEY + "&page=1", type: "movie" }
       ];
 
-      const homeMap = {};
+      let lastErr = null;
       for (const cat of catalogs) {
-        const json = await requestJson(cat.url);
-        if (json && json.results && json.results.length > 0) {
-          homeMap[cat.name] = json.results.map(item => formatItem(item, cat.type));
+        try {
+          const json = await safeFetchJson(cat.url);
+          if (json && json.results && json.results.length > 0) {
+            homeMap[cat.name] = json.results.map(item => mapTmdb(item, cat.type));
+          }
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+
+      if (Object.keys(homeMap).length === 0) {
+        const cm = await safeFetchJson(CINEMETA + "/catalog/movie/top.json");
+        if (cm && cm.metas && cm.metas.length > 0) {
+          homeMap["🔥 Popular Movies"] = cm.metas.slice(0, 20).map(m => ({
+            title: m.name,
+            url: "imdb:" + m.id,
+            posterUrl: m.poster || "",
+            type: "movie"
+          }));
+        } else {
+          throw lastErr || new Error("Blocked by ISP");
         }
       }
 
@@ -62,10 +86,10 @@
   async function search(query, cb) {
     try {
       const url = TMDB_BASE + "/search/multi?api_key=" + TMDB_KEY + "&query=" + encodeURIComponent(query);
-      const json = await requestJson(url);
+      const json = await safeFetchJson(url);
       const results = (json && json.results ? json.results : [])
         .filter(i => i.media_type === "movie" || i.media_type === "tv")
-        .map(i => formatItem(i, i.media_type));
+        .map(i => mapTmdb(i, i.media_type));
       cb({ success: true, data: results });
     } catch (err) {
       cb({ success: false, error: String(err) });
@@ -75,15 +99,25 @@
   async function load(url, cb) {
     try {
       const parts = url.split(":");
-      const type = parts[0];
-      const tmdbId = parts[1];
-      const apiUrl = TMDB_BASE + "/" + type + "/" + tmdbId + "?api_key=" + TMDB_KEY;
-      const item = await requestJson(apiUrl);
+      let type = parts[0];
+      let tmdbId = parts[1];
 
+      if (type === "imdb") {
+        const findJson = await safeFetchJson(TMDB_BASE + "/find/" + tmdbId + "?api_key=" + TMDB_KEY + "&external_source=imdb_id");
+        if (findJson.movie_results && findJson.movie_results.length > 0) {
+          type = "movie";
+          tmdbId = findJson.movie_results[0].id;
+        } else if (findJson.tv_results && findJson.tv_results.length > 0) {
+          type = "tv";
+          tmdbId = findJson.tv_results[0].id;
+        }
+      }
+
+      const item = await safeFetchJson(TMDB_BASE + "/" + type + "/" + tmdbId + "?api_key=" + TMDB_KEY);
       const releaseStr = (item && (item.release_date || item.first_air_date)) || "2026";
       const data = {
         title: (item && (item.title || item.name)) || "Unknown",
-        url: url,
+        url: type + ":" + tmdbId,
         posterUrl: item && item.poster_path ? IMG_BASE + item.poster_path : "",
         description: (item && item.overview) || "",
         year: parseInt(releaseStr.split("-")[0]) || 2026,
@@ -94,7 +128,7 @@
         const episodes = [];
         for (const s of item.seasons) {
           if (s.season_number === 0) continue;
-          const sJson = await requestJson(TMDB_BASE + "/tv/" + tmdbId + "/season/" + s.season_number + "?api_key=" + TMDB_KEY);
+          const sJson = await safeFetchJson(TMDB_BASE + "/tv/" + tmdbId + "/season/" + s.season_number + "?api_key=" + TMDB_KEY);
           if (sJson && sJson.episodes) {
             for (const ep of sJson.episodes) {
               episodes.push({
@@ -129,7 +163,7 @@
         "Origin": BASE_URL
       };
 
-      const json = await requestJson(apiUrl, headers);
+      const json = await safeFetchJson(apiUrl, headers);
       const streams = [];
 
       if (json && json.sources && Array.isArray(json.sources)) {
@@ -138,10 +172,7 @@
           streams.push({
             name: "BioscopeBD (" + (json.selectedProvider || "Auto") + " - " + (src.quality || "HD") + ")",
             url: streamUrl,
-            headers: {
-              "Referer": BASE_URL + "/",
-              "Origin": BASE_URL
-            }
+            headers: headers
           });
         }
       }
