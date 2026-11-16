@@ -4,6 +4,6 @@
   "description": "Custom SkyStream Extensions",
   "manifestVersion": 1,
   "pluginLists": [
-    "https://githubusercontent.com"
+    "https://raw.githubusercontent.com/beennn99999-cyber/MiraiExt-SkyStream/main/dist/plugins.json"
   ]
 }
